@@ -1,13 +1,13 @@
-
-import React, { useState, useRef, useEffect } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
-import LoadingSpinner from '@/components/LoadingSpinner';
-import CallControls from '../components/CallControls';
-import AudioWaveform from '../components/AudioWaveform';
-import CallTimer from '../components/CallTimer';
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useRef, useEffect } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import LoadingSpinner from "@/components/LoadingSpinner";
+import CallControls from "../components/CallControls";
+import AudioWaveform from "../components/AudioWaveform";
+import CallTimer from "../components/CallTimer";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
+import Transcript from "@/components/transcript/Transcript";
 
 const Index = () => {
   const [isMuted, setIsMuted] = useState(false);
@@ -26,7 +26,7 @@ const Index = () => {
 
   useEffect(() => {
     if (!user) {
-      navigate('/auth');
+      navigate("/auth");
     }
     const timer = setTimeout(() => setIsLoading(false), 1000);
     return () => clearTimeout(timer);
@@ -35,74 +35,91 @@ const Index = () => {
   const handleDataAvailable = async (event: BlobEvent) => {
     if (event.data.size > 0 && currentSession) {
       try {
-        console.log('Audio chunk received, size:', event.data.size);
-        
+        console.log("Audio chunk received, size:", event.data.size);
+
         // Convert blob to base64
         const reader = new FileReader();
         reader.onloadend = async () => {
           try {
             const base64 = reader.result as string;
-            const base64Audio = base64.split(',')[1];
-            console.log('Audio converted to base64, sending to speech-to-text...');
+            const base64Audio = base64.split(",")[1];
+            console.log(
+              "Audio converted to base64, sending to speech-to-text..."
+            );
 
-            const { data: sttData, error: sttError } = await supabase.functions.invoke('speech-to-text', {
-              body: {
-                audio: base64Audio
-              }
+            const { data: sttData, error: sttError } =
+              await supabase.functions.invoke("speech-to-text", {
+                body: {
+                  audio: base64Audio,
+                },
+              });
+
+            console.log("Speech-to-text response:", {
+              data: sttData,
+              error: sttError,
             });
 
-            console.log('Speech-to-text response:', { data: sttData, error: sttError });
-
             if (sttError) {
-              console.error('Speech-to-text error:', sttError);
-              toast.error('Error processing speech');
+              console.error("Speech-to-text error:", sttError);
+              toast.error("Error processing speech");
               return;
             }
 
             if (sttData?.text) {
-              console.log('Received transcript:', sttData.text);
-              setTranscript(prev => [...prev, sttData.text]);
+              console.log("Received transcript:", sttData.text);
+              setTranscript((prev) => [...prev, sttData.text]);
 
               // Get AI response using vertex-ai function
-              console.log('Sending transcript to Vertex AI...');
-              const { data: aiData, error: aiError } = await supabase.functions.invoke('vertex-ai', {
-                body: { 
-                  text: sttData.text,
-                  sessionId: currentSession,
-                  userId: user?.id
-                }
+              console.log("Sending transcript to Vertex AI...");
+              const { data: aiData, error: aiError } =
+                await supabase.functions.invoke("vertex-ai", {
+                  body: {
+                    text: sttData.text,
+                    sessionId: currentSession,
+                    userId: user?.id,
+                  },
+                });
+
+              console.log("Vertex AI response:", {
+                data: aiData,
+                error: aiError,
               });
 
-              console.log('Vertex AI response:', { data: aiData, error: aiError });
-
               if (aiError) {
-                console.error('AI response error:', aiError);
-                toast.error('Error getting AI response');
+                console.error("AI response error:", aiError);
+                toast.error("Error getting AI response");
                 return;
               }
 
               if (aiData?.response) {
-                console.log('Received AI response:', aiData.response);
-                setAiResponses(prev => [...prev, aiData.response]);
+                console.log("Received AI response:", aiData.response);
+                setAiResponses((prev) => [...prev, aiData.response]);
 
                 // Convert AI response to speech
-                console.log('Converting AI response to speech...');
-                const { data: ttsData, error: ttsError } = await supabase.functions.invoke('text-to-speech', {
-                  body: { text: aiData.response }
+                console.log("Converting AI response to speech...");
+                const { data: ttsData, error: ttsError } =
+                  await supabase.functions.invoke("text-to-speech", {
+                    body: { text: aiData.response },
+                  });
+
+                console.log("Text-to-speech response:", {
+                  data: ttsData,
+                  error: ttsError,
                 });
 
-                console.log('Text-to-speech response:', { data: ttsData, error: ttsError });
-
                 if (ttsError) {
-                  console.error('Text-to-speech error:', ttsError);
-                  toast.error('Error converting response to speech');
+                  console.error("Text-to-speech error:", ttsError);
+                  toast.error("Error converting response to speech");
                   return;
                 }
 
                 if (ttsData?.audioContent) {
-                  const audioBlob = base64ToBlob(ttsData.audioContent, 'audio/mpeg');
+                  const audioBlob = base64ToBlob(
+                    ttsData.audioContent,
+                    "audio/mpeg"
+                  );
                   const audioUrl = URL.createObjectURL(audioBlob);
-                  
+
                   if (audioRef.current) {
                     audioRef.current.src = audioUrl;
                     await audioRef.current.play();
@@ -111,68 +128,70 @@ const Index = () => {
               }
             }
           } catch (error) {
-            console.error('Error in FileReader callback:', error);
-            toast.error('Error processing audio data');
+            console.error("Error in FileReader callback:", error);
+            toast.error("Error processing audio data");
           }
         };
 
         reader.onerror = (error) => {
-          console.error('FileReader error:', error);
-          toast.error('Error reading audio data');
+          console.error("FileReader error:", error);
+          toast.error("Error reading audio data");
         };
 
         reader.readAsDataURL(event.data);
       } catch (error) {
-        console.error('Error in handleDataAvailable:', error);
-        toast.error('Error processing audio');
+        console.error("Error in handleDataAvailable:", error);
+        toast.error("Error processing audio");
       }
     } else {
-      console.log('No audio data or session:', { 
-        dataSize: event.data.size, 
-        hasSession: Boolean(currentSession) 
+      console.log("No audio data or session:", {
+        dataSize: event.data.size,
+        hasSession: Boolean(currentSession),
       });
     }
   };
 
   const startRecording = async () => {
     try {
-      console.log('Requesting microphone access...');
-      const stream = await navigator.mediaDevices.getUserMedia({ 
+      console.log("Requesting microphone access...");
+      const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
-          sampleRate: 48000
-        }
+          sampleRate: 48000,
+        },
       });
-      
-      console.log('Microphone access granted, creating MediaRecorder...');
+
+      console.log("Microphone access granted, creating MediaRecorder...");
       const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: 'audio/webm'
+        mimeType: "audio/webm",
       });
-      
+
       mediaRecorderRef.current = mediaRecorder;
-      
+
       mediaRecorder.ondataavailable = handleDataAvailable;
       mediaRecorder.start(3000); // Capture in 3-second chunks
-      console.log('MediaRecorder started');
+      console.log("MediaRecorder started");
       setIsRecording(true);
     } catch (error) {
-      console.error('Error accessing microphone:', error);
-      toast.error('Failed to access microphone');
+      console.error("Error accessing microphone:", error);
+      toast.error("Failed to access microphone");
     }
   };
 
   const stopRecording = () => {
     if (mediaRecorderRef.current && isRecording) {
-      console.log('Stopping MediaRecorder...');
+      console.log("Stopping MediaRecorder...");
       mediaRecorderRef.current.stop();
-      mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+      mediaRecorderRef.current.stream
+        .getTracks()
+        .forEach((track) => track.stop());
       setIsRecording(false);
-      console.log('MediaRecorder stopped');
+      console.log("MediaRecorder stopped");
     } else {
-      console.log('Cannot stop recording:', { 
-        hasMediaRecorder: Boolean(mediaRecorderRef.current), 
-        isRecording 
+      console.log("Cannot stop recording:", {
+        hasMediaRecorder: Boolean(mediaRecorderRef.current),
+        isRecording,
       });
     }
   };
@@ -186,21 +205,21 @@ const Index = () => {
 
   const startCall = async () => {
     if (!user) {
-      toast.error('Please sign in to start a call');
+      toast.error("Please sign in to start a call");
       return;
     }
 
     try {
-      console.log('Starting new session...');
+      console.log("Starting new session...");
       const { data, error } = await supabase
-        .from('sessions')
+        .from("sessions")
         .insert([{ user_id: user.id }])
-        .select('id')
+        .select("id")
         .single();
 
       if (error) throw error;
 
-      console.log('Session created:', data.id);
+      console.log("Session created:", data.id);
       setCurrentSession(data.id);
       setIsCallActive(true);
       setStartTime(Date.now());
@@ -209,33 +228,33 @@ const Index = () => {
       await startRecording();
       await testTextToSpeech();
     } catch (error) {
-      console.error('Error starting session:', error);
-      toast.error('Failed to start session');
+      console.error("Error starting session:", error);
+      toast.error("Failed to start session");
     }
   };
 
   const handleEndCall = async () => {
-    console.log('Ending call...');
+    console.log("Ending call...");
     stopRecording();
-    
+
     if (currentSession) {
       try {
         const { error } = await supabase
-          .from('sessions')
-          .update({ 
+          .from("sessions")
+          .update({
             ended_at: new Date().toISOString(),
-            transcript: transcript.join('\n'),
-            ai_responses: aiResponses 
+            transcript: transcript.join("\n"),
+            ai_responses: aiResponses,
           })
-          .eq('id', currentSession);
+          .eq("id", currentSession);
 
         if (error) throw error;
 
-        console.log('Session saved successfully');
-        toast.success('Session saved successfully');
+        console.log("Session saved successfully");
+        toast.success("Session saved successfully");
       } catch (error) {
-        console.error('Error ending session:', error);
-        toast.error('Failed to save session');
+        console.error("Error ending session:", error);
+        toast.error("Failed to save session");
       }
     }
 
@@ -258,30 +277,36 @@ const Index = () => {
   const testTextToSpeech = async () => {
     try {
       setIsProcessing(true);
-      console.log('Testing text-to-speech...');
-      const { data, error } = await supabase.functions.invoke('text-to-speech', {
-        body: { text: "Hello! I'm your AI Coach. How can I help you today?" }
-      });
+      console.log("Testing text-to-speech...");
+      const { data, error } = await supabase.functions.invoke(
+        "text-to-speech",
+        {
+          body: { text: "Hello! I'm your AI Coach. How can I help you today?" },
+        }
+      );
 
       if (error) {
         throw error;
       }
 
-      console.log('Text-to-speech response received');
+      console.log("Text-to-speech response received");
       if (data?.audioContent) {
-        const audioBlob = base64ToBlob(data.audioContent, 'audio/mpeg');
+        const audioBlob = base64ToBlob(data.audioContent, "audio/mpeg");
         const audioUrl = URL.createObjectURL(audioBlob);
-        
+
         if (audioRef.current) {
           audioRef.current.src = audioUrl;
           await audioRef.current.play();
         }
 
-        setAiResponses(prev => [...prev, "Hello! I'm your AI Coach. How can I help you today?"]);
+        setAiResponses((prev) => [
+          ...prev,
+          "Hello! I'm your AI Coach. How can I help you today?",
+        ]);
       }
     } catch (error) {
-      console.error('Error in text-to-speech:', error);
-      toast.error('Failed to generate speech');
+      console.error("Error in text-to-speech:", error);
+      toast.error("Failed to generate speech");
     } finally {
       setIsProcessing(false);
     }
@@ -296,13 +321,15 @@ const Index = () => {
       <audio ref={audioRef} className="hidden" />
       {!isCallActive ? (
         <div className="text-center mt-32">
-          <h1 className="text-3xl font-bold text-primary mb-8">Welcome to AI Coach</h1>
+          <h1 className="text-3xl font-bold text-primary mb-8">
+            Welcome to AI Coach
+          </h1>
           <button
             onClick={startCall}
             className="bg-primary text-white px-8 py-3 rounded-lg hover:bg-primary/90 transition-colors"
             disabled={isProcessing}
           >
-            {isProcessing ? 'Starting...' : 'Start Call'}
+            {isProcessing ? "Starting..." : "Start Call"}
           </button>
         </div>
       ) : (
@@ -311,11 +338,17 @@ const Index = () => {
           <div className="bg-white rounded-2xl p-8 shadow-lg">
             <div className="text-center mb-8">
               <div className="w-24 h-24 bg-primary/10 rounded-full mx-auto mb-4 flex items-center justify-center">
-                <div className={`w-16 h-16 bg-primary rounded-full ${isRecording ? 'animate-pulse' : ''}`} />
+                <div
+                  className={`w-16 h-16 bg-primary rounded-full ${
+                    isRecording ? "animate-pulse" : ""
+                  }`}
+                />
               </div>
-              <p className="text-lg text-primary">{isRecording ? 'Listening...' : 'Call Active'}</p>
+              <p className="text-lg text-primary">
+                {isRecording ? "Listening..." : "Call Active"}
+              </p>
             </div>
-            
+
             <div className="space-y-4 mb-8">
               {transcript.map((text, index) => (
                 <div key={index} className="flex flex-col gap-4">
@@ -332,14 +365,16 @@ const Index = () => {
                 </div>
               ))}
             </div>
-            
+
             <AudioWaveform isActive={isRecording} />
-            
+
             <CallControls
               isMuted={isMuted}
               onToggleMute={handleToggleMute}
               onEndCall={handleEndCall}
             />
+
+            <Transcript />
           </div>
         </>
       )}
