@@ -1,18 +1,31 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import Sidebar from '../components/Sidebar';
 import CallControls from '../components/CallControls';
 import AudioWaveform from '../components/AudioWaveform';
 import CallTimer from '../components/CallTimer';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
 
 const Index = () => {
   const [isMuted, setIsMuted] = useState(false);
   const [isCallActive, setIsCallActive] = useState(false);
   const [startTime, setStartTime] = useState(Date.now());
   const [isProcessing, setIsProcessing] = useState(false);
+  const [currentSession, setCurrentSession] = useState<string | null>(null);
+  const [transcript, setTranscript] = useState<string[]>([]);
+  const [aiResponses, setAiResponses] = useState<string[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const navigate = useNavigate();
+  const { user } = useAuth();
+
+  useEffect(() => {
+    if (!user) {
+      navigate('/auth');
+    }
+  }, [user, navigate]);
 
   const handleToggleMute = () => {
     setIsMuted(!isMuted);
@@ -21,17 +34,59 @@ const Index = () => {
     }
   };
 
-  const handleEndCall = () => {
-    setIsCallActive(false);
-    if (audioRef.current) {
-      audioRef.current.pause();
+  const startCall = async () => {
+    if (!user) {
+      toast.error('Please sign in to start a call');
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('sessions')
+        .insert([{ user_id: user.id }])
+        .select('id')
+        .single();
+
+      if (error) throw error;
+
+      setCurrentSession(data.id);
+      setIsCallActive(true);
+      setStartTime(Date.now());
+      setTranscript([]);
+      setAiResponses([]);
+      testTextToSpeech();
+    } catch (error) {
+      console.error('Error starting session:', error);
+      toast.error('Failed to start session');
     }
   };
 
-  const startCall = () => {
-    setIsCallActive(true);
-    setStartTime(Date.now());
-    testTextToSpeech();
+  const handleEndCall = async () => {
+    if (currentSession) {
+      try {
+        const { error } = await supabase
+          .from('sessions')
+          .update({ 
+            ended_at: new Date().toISOString(),
+            transcript: transcript.join('\n'),
+            ai_responses: aiResponses 
+          })
+          .eq('id', currentSession);
+
+        if (error) throw error;
+
+        toast.success('Session saved successfully');
+      } catch (error) {
+        console.error('Error ending session:', error);
+        toast.error('Failed to save session');
+      }
+    }
+
+    setIsCallActive(false);
+    setCurrentSession(null);
+    if (audioRef.current) {
+      audioRef.current.pause();
+    }
   };
 
   const testTextToSpeech = async () => {
@@ -53,6 +108,9 @@ const Index = () => {
           audioRef.current.src = audioUrl;
           audioRef.current.play();
         }
+
+        // Store AI response
+        setAiResponses(prev => [...prev, "Hello! I'm your AI Coach. How can I help you today?"]);
       }
     } catch (error) {
       console.error('Error in text-to-speech:', error);

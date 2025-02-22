@@ -9,6 +9,27 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      feedback: {
+        Row: {
+          created_at: string | null
+          id: string
+          message: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          message: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          message?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -27,6 +48,54 @@ export type Database = {
           full_name?: string | null
           id?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      sessions: {
+        Row: {
+          ai_responses: string[] | null
+          ended_at: string | null
+          id: string
+          started_at: string | null
+          transcript: string | null
+          user_id: string | null
+        }
+        Insert: {
+          ai_responses?: string[] | null
+          ended_at?: string | null
+          id?: string
+          started_at?: string | null
+          transcript?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          ai_responses?: string[] | null
+          ended_at?: string | null
+          id?: string
+          started_at?: string | null
+          transcript?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      user_settings: {
+        Row: {
+          color_scheme: string | null
+          show_realtime_transcript: boolean | null
+          theme: string | null
+          user_id: string
+        }
+        Insert: {
+          color_scheme?: string | null
+          show_realtime_transcript?: boolean | null
+          theme?: string | null
+          user_id: string
+        }
+        Update: {
+          color_scheme?: string | null
+          show_realtime_transcript?: boolean | null
+          theme?: string | null
+          user_id?: string
         }
         Relationships: []
       }
