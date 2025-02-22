@@ -71,7 +71,7 @@ const Auth = () => {
 
   return (
     <div className="min-h-screen bg-secondary flex items-center justify-center p-4">
-      <Card className="w-full max-w-md">
+      <Card className="w-full max-w-md border-2 border-primary/20">
         <CardHeader>
           <CardTitle>{isSignUp ? 'Create Account' : 'Welcome Back'}</CardTitle>
           <CardDescription>
@@ -91,6 +91,7 @@ const Auth = () => {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 disabled={loading}
+                className="border-2 focus-visible:border-primary/30"
               />
             </div>
             <div className="space-y-2">
@@ -102,9 +103,10 @@ const Auth = () => {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 disabled={loading}
+                className="border-2 focus-visible:border-primary/30"
               />
             </div>
-            <Button type="submit" className="w-full" disabled={loading}>
+            <Button type="submit" className="w-full border-2 hover:border-primary/30" disabled={loading}>
               {isSignUp ? 'Sign Up' : 'Sign In'}
             </Button>
             <p className="text-center text-sm text-muted-foreground">
