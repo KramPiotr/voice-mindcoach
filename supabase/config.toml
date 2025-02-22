@@ -16,5 +16,5 @@ enabled = true
 [storage]
 enabled = true
 
-[functions.send-feedback]
+[functions.text-to-speech]
 verify_jwt = true
