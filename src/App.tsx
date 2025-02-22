@@ -35,6 +35,7 @@ function App() {
                   variant="ghost"
                   size="icon"
                   onClick={() => setSidebarOpen(!sidebarOpen)}
+                  className="text-primary hover:text-accent hover:bg-accent/10"
                 >
                   <Menu className="h-6 w-6" />
                 </Button>
