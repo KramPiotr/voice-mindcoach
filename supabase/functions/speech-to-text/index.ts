@@ -1,6 +1,7 @@
 
-import { serve } from "https://deno.fresh.runtime.dev";
-import { credentials } from "https://deno.land/x/broken/mod.ts";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { GoogleAuth } from "https://esm.sh/google-auth-library@8.9.0";
+import { SpeechClient } from "https://esm.sh/@google-cloud/speech@6.0.2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -20,7 +21,13 @@ serve(async (req) => {
       throw new Error('Google service account credentials not found');
     }
 
-    const client = await initializeGoogleClient(serviceAccountJson);
+    const credentials = JSON.parse(serviceAccountJson);
+    const auth = new GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/cloud-platform'],
+    });
+
+    const client = new SpeechClient({ auth });
 
     // Initialize WebSocket connection
     const { socket, response } = Deno.upgradeWebSocket(req);
@@ -90,19 +97,3 @@ serve(async (req) => {
     });
   }
 });
-
-async function initializeGoogleClient(serviceAccountJson: string) {
-  try {
-    const credentials = JSON.parse(serviceAccountJson);
-    const auth = new GoogleAuth({
-      credentials,
-      scopes: ['https://www.googleapis.com/auth/cloud-platform'],
-    });
-
-    return new speech.SpeechClient({ auth });
-  } catch (error) {
-    console.error('Error initializing Google client:', error);
-    throw error;
-  }
-}
-
