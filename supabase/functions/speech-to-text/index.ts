@@ -14,13 +14,13 @@ serve(async (req) => {
   }
 
   try {
-    const { audio, sessionId, userId } = await req.json();
+    const { audio } = await req.json();
 
     if (!audio) {
       throw new Error('No audio data provided');
     }
 
-    console.log('Processing audio for session:', sessionId);
+    console.log('Processing audio...');
     
     // Convert base64 to audio bytes
     const binaryAudio = Uint8Array.from(atob(audio), c => c.charCodeAt(0));
@@ -58,62 +58,15 @@ serve(async (req) => {
     const result = await response.json();
     console.log('Speech-to-Text result:', result);
 
-    let transcript = '';
+    let text = '';
     if (result.results && result.results.length > 0) {
-      transcript = result.results[0].alternatives[0].transcript;
+      text = result.results[0].alternatives[0].transcript;
     }
 
-    console.log('Transcript:', transcript);
-
-    // Get AI response using existing Vertex AI function
-    const aiResponse = await fetch(
-      'http://localhost:54321/functions/v1/vertex-ai',
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${Deno.env.get('SUPABASE_ANON_KEY')}`,
-        },
-        body: JSON.stringify({ transcript }),
-      }
-    );
-
-    if (!aiResponse.ok) {
-      throw new Error('Failed to get AI response');
-    }
-
-    const { response: aiText } = await aiResponse.json();
-
-    // Store the interaction in the database
-    const { error: dbError } = await fetch(
-      'http://localhost:54321/rest/v1/chat_interactions',
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': Deno.env.get('SUPABASE_ANON_KEY') || '',
-          'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
-        },
-        body: JSON.stringify({
-          session_id: sessionId,
-          user_id: userId,
-          user_message: transcript,
-          ai_response: aiText,
-          interaction_type: 'speech',
-          successful: true,
-        }),
-      }
-    ).then(res => res.json());
-
-    if (dbError) {
-      console.error('Error storing interaction:', dbError);
-    }
+    console.log('Transcribed text:', text);
 
     return new Response(
-      JSON.stringify({ 
-        transcript,
-        aiResponse: aiText
-      }),
+      JSON.stringify({ text }),
       { 
         headers: { 
           ...corsHeaders, 
