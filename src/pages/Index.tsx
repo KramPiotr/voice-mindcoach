@@ -35,82 +35,117 @@ const Index = () => {
   const handleDataAvailable = async (event: BlobEvent) => {
     if (event.data.size > 0 && currentSession) {
       try {
-        // Convert blob to base64
-        const base64Audio = await new Promise<string>((resolve) => {
-          const reader = new FileReader();
-          reader.onloadend = () => {
-            const base64 = reader.result as string;
-            resolve(base64.split(',')[1]);
-          };
-          reader.readAsDataURL(event.data);
-        });
-
-        console.log('Sending audio chunk for processing...');
+        console.log('Audio chunk received, size:', event.data.size);
         
-        const { data: sttData, error: sttError } = await supabase.functions.invoke('speech-to-text', {
-          body: {
-            audio: base64Audio
-          }
-        });
+        // Convert blob to base64
+        const reader = new FileReader();
+        reader.onloadend = async () => {
+          try {
+            const base64 = reader.result as string;
+            const base64Audio = base64.split(',')[1];
+            console.log('Audio converted to base64, sending to speech-to-text...');
 
-        if (sttError) {
-          console.error('Speech-to-text error:', sttError);
-          return;
-        }
-
-        if (sttData?.text) {
-          console.log('Received transcript:', sttData.text);
-          setTranscript(prev => [...prev, sttData.text]);
-
-          // Get AI response using vertex-ai function
-          const { data: aiData, error: aiError } = await supabase.functions.invoke('vertex-ai', {
-            body: { 
-              text: sttData.text,
-              sessionId: currentSession,
-              userId: user?.id
-            }
-          });
-
-          if (aiError) {
-            console.error('AI response error:', aiError);
-            return;
-          }
-
-          if (aiData?.response) {
-            console.log('Received AI response:', aiData.response);
-            setAiResponses(prev => [...prev, aiData.response]);
-
-            // Convert AI response to speech
-            const { data: ttsData, error: ttsError } = await supabase.functions.invoke('text-to-speech', {
-              body: { text: aiData.response }
+            const { data: sttData, error: sttError } = await supabase.functions.invoke('speech-to-text', {
+              body: {
+                audio: base64Audio
+              }
             });
 
-            if (ttsError) {
-              console.error('Text-to-speech error:', ttsError);
+            console.log('Speech-to-text response:', { data: sttData, error: sttError });
+
+            if (sttError) {
+              console.error('Speech-to-text error:', sttError);
+              toast.error('Error processing speech');
               return;
             }
 
-            if (ttsData?.audioContent) {
-              const audioBlob = base64ToBlob(ttsData.audioContent, 'audio/mpeg');
-              const audioUrl = URL.createObjectURL(audioBlob);
-              
-              if (audioRef.current) {
-                audioRef.current.src = audioUrl;
-                await audioRef.current.play();
+            if (sttData?.text) {
+              console.log('Received transcript:', sttData.text);
+              setTranscript(prev => [...prev, sttData.text]);
+
+              // Get AI response using vertex-ai function
+              console.log('Sending transcript to Vertex AI...');
+              const { data: aiData, error: aiError } = await supabase.functions.invoke('vertex-ai', {
+                body: { 
+                  text: sttData.text,
+                  sessionId: currentSession,
+                  userId: user?.id
+                }
+              });
+
+              console.log('Vertex AI response:', { data: aiData, error: aiError });
+
+              if (aiError) {
+                console.error('AI response error:', aiError);
+                toast.error('Error getting AI response');
+                return;
+              }
+
+              if (aiData?.response) {
+                console.log('Received AI response:', aiData.response);
+                setAiResponses(prev => [...prev, aiData.response]);
+
+                // Convert AI response to speech
+                console.log('Converting AI response to speech...');
+                const { data: ttsData, error: ttsError } = await supabase.functions.invoke('text-to-speech', {
+                  body: { text: aiData.response }
+                });
+
+                console.log('Text-to-speech response:', { data: ttsData, error: ttsError });
+
+                if (ttsError) {
+                  console.error('Text-to-speech error:', ttsError);
+                  toast.error('Error converting response to speech');
+                  return;
+                }
+
+                if (ttsData?.audioContent) {
+                  const audioBlob = base64ToBlob(ttsData.audioContent, 'audio/mpeg');
+                  const audioUrl = URL.createObjectURL(audioBlob);
+                  
+                  if (audioRef.current) {
+                    audioRef.current.src = audioUrl;
+                    await audioRef.current.play();
+                  }
+                }
               }
             }
+          } catch (error) {
+            console.error('Error in FileReader callback:', error);
+            toast.error('Error processing audio data');
           }
-        }
+        };
+
+        reader.onerror = (error) => {
+          console.error('FileReader error:', error);
+          toast.error('Error reading audio data');
+        };
+
+        reader.readAsDataURL(event.data);
       } catch (error) {
-        console.error('Error in audio processing pipeline:', error);
+        console.error('Error in handleDataAvailable:', error);
         toast.error('Error processing audio');
       }
+    } else {
+      console.log('No audio data or session:', { 
+        dataSize: event.data.size, 
+        hasSession: Boolean(currentSession) 
+      });
     }
   };
 
   const startRecording = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      console.log('Requesting microphone access...');
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          sampleRate: 48000
+        }
+      });
+      
+      console.log('Microphone access granted, creating MediaRecorder...');
       const mediaRecorder = new MediaRecorder(stream, {
         mimeType: 'audio/webm'
       });
@@ -119,6 +154,7 @@ const Index = () => {
       
       mediaRecorder.ondataavailable = handleDataAvailable;
       mediaRecorder.start(3000); // Capture in 3-second chunks
+      console.log('MediaRecorder started');
       setIsRecording(true);
     } catch (error) {
       console.error('Error accessing microphone:', error);
@@ -128,9 +164,16 @@ const Index = () => {
 
   const stopRecording = () => {
     if (mediaRecorderRef.current && isRecording) {
+      console.log('Stopping MediaRecorder...');
       mediaRecorderRef.current.stop();
       mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
       setIsRecording(false);
+      console.log('MediaRecorder stopped');
+    } else {
+      console.log('Cannot stop recording:', { 
+        hasMediaRecorder: Boolean(mediaRecorderRef.current), 
+        isRecording 
+      });
     }
   };
 
@@ -148,6 +191,7 @@ const Index = () => {
     }
 
     try {
+      console.log('Starting new session...');
       const { data, error } = await supabase
         .from('sessions')
         .insert([{ user_id: user.id }])
@@ -156,6 +200,7 @@ const Index = () => {
 
       if (error) throw error;
 
+      console.log('Session created:', data.id);
       setCurrentSession(data.id);
       setIsCallActive(true);
       setStartTime(Date.now());
@@ -170,6 +215,7 @@ const Index = () => {
   };
 
   const handleEndCall = async () => {
+    console.log('Ending call...');
     stopRecording();
     
     if (currentSession) {
@@ -185,6 +231,7 @@ const Index = () => {
 
         if (error) throw error;
 
+        console.log('Session saved successfully');
         toast.success('Session saved successfully');
       } catch (error) {
         console.error('Error ending session:', error);
@@ -211,6 +258,7 @@ const Index = () => {
   const testTextToSpeech = async () => {
     try {
       setIsProcessing(true);
+      console.log('Testing text-to-speech...');
       const { data, error } = await supabase.functions.invoke('text-to-speech', {
         body: { text: "Hello! I'm your AI Coach. How can I help you today?" }
       });
@@ -219,6 +267,7 @@ const Index = () => {
         throw error;
       }
 
+      console.log('Text-to-speech response received');
       if (data?.audioContent) {
         const audioBlob = base64ToBlob(data.audioContent, 'audio/mpeg');
         const audioUrl = URL.createObjectURL(audioBlob);
