@@ -7,92 +7,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-async function transcribeAudio(audioData: string) {
-  try {
-    // Process audio in chunks
-    const binaryAudio = processBase64Chunks(audioData);
-    
-    // Prepare form data for OpenAI Whisper API
-    const formData = new FormData();
-    const blob = new Blob([binaryAudio], { type: 'audio/webm' });
-    formData.append('file', blob, 'audio.webm');
-    formData.append('model', 'whisper-1');
-
-    const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${Deno.env.get('OPENAI_API_KEY')}`,
-      },
-      body: formData,
-    });
-
-    if (!response.ok) {
-      throw new Error(`OpenAI API error: ${await response.text()}`);
-    }
-
-    const result = await response.json();
-    return result.text;
-  } catch (error) {
-    console.error('Error in transcription:', error);
-    throw error;
-  }
-}
-
-async function getAIResponse(transcript: string) {
-  try {
-    const response = await fetch(
-      'http://localhost:54321/functions/v1/vertex-ai',
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${Deno.env.get('SUPABASE_ANON_KEY')}`,
-        },
-        body: JSON.stringify({ transcript }),
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(`Vertex AI error: ${await response.text()}`);
-    }
-
-    const result = await response.json();
-    return result.response;
-  } catch (error) {
-    console.error('Error getting AI response:', error);
-    throw error;
-  }
-}
-
-function processBase64Chunks(base64String: string, chunkSize = 32768) {
-  const chunks: Uint8Array[] = [];
-  let position = 0;
-  
-  while (position < base64String.length) {
-    const chunk = base64String.slice(position, position + chunkSize);
-    const binaryChunk = atob(chunk);
-    const bytes = new Uint8Array(binaryChunk.length);
-    
-    for (let i = 0; i < binaryChunk.length; i++) {
-      bytes[i] = binaryChunk.charCodeAt(i);
-    }
-    
-    chunks.push(bytes);
-    position += chunkSize;
-  }
-
-  const totalLength = chunks.reduce((acc, chunk) => acc + chunk.length, 0);
-  const result = new Uint8Array(totalLength);
-  let offset = 0;
-
-  for (const chunk of chunks) {
-    result.set(chunk, offset);
-    offset += chunk.length;
-  }
-
-  return result;
-}
-
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -108,13 +22,67 @@ serve(async (req) => {
 
     console.log('Processing audio for session:', sessionId);
     
-    // Get the transcript
-    const transcript = await transcribeAudio(audio);
+    // Convert base64 to audio bytes
+    const binaryAudio = Uint8Array.from(atob(audio), c => c.charCodeAt(0));
+
+    // Create request for Google Cloud Speech-to-Text
+    const request = {
+      audio: {
+        content: btoa(String.fromCharCode(...binaryAudio))
+      },
+      config: {
+        encoding: 'WEBM_OPUS',
+        sampleRateHertz: 48000,
+        languageCode: 'en-US',
+        model: 'default',
+        useEnhanced: true,
+      }
+    };
+
+    // Call Google Cloud Speech-to-Text API
+    const response = await fetch('https://speech.googleapis.com/v1/speech:recognize', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${Deno.env.get('GOOGLE_SERVICE_ACCOUNT')}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(request)
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      console.error('Google Speech-to-Text API error:', error);
+      throw new Error(`Google Speech-to-Text API error: ${error}`);
+    }
+
+    const result = await response.json();
+    console.log('Speech-to-Text result:', result);
+
+    let transcript = '';
+    if (result.results && result.results.length > 0) {
+      transcript = result.results[0].alternatives[0].transcript;
+    }
+
     console.log('Transcript:', transcript);
 
-    // Get AI response
-    const aiResponse = await getAIResponse(transcript);
-    console.log('AI Response:', aiResponse);
+    // Get AI response using existing Vertex AI function
+    const aiResponse = await fetch(
+      'http://localhost:54321/functions/v1/vertex-ai',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${Deno.env.get('SUPABASE_ANON_KEY')}`,
+        },
+        body: JSON.stringify({ transcript }),
+      }
+    );
+
+    if (!aiResponse.ok) {
+      throw new Error('Failed to get AI response');
+    }
+
+    const { response: aiText } = await aiResponse.json();
 
     // Store the interaction in the database
     const { error: dbError } = await fetch(
@@ -130,7 +98,7 @@ serve(async (req) => {
           session_id: sessionId,
           user_id: userId,
           user_message: transcript,
-          ai_response: aiResponse,
+          ai_response: aiText,
           interaction_type: 'speech',
           successful: true,
         }),
@@ -144,7 +112,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         transcript,
-        aiResponse
+        aiResponse: aiText
       }),
       { 
         headers: { 
