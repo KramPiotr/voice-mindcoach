@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -15,7 +16,7 @@ const History = () => {
         .from('sessions')
         .select('*')
         .eq('user_id', user?.id)
-        .order('created_at', { ascending: false });
+        .order('started_at', { ascending: false });
 
       if (error) throw error;
       return data;
@@ -38,7 +39,7 @@ const History = () => {
                 <CardTitle>Session ID: {session.id}</CardTitle>
               </CardHeader>
               <CardContent>
-                <p>Created At: {new Date(session.created_at).toLocaleString()}</p>
+                <p>Started At: {new Date(session.started_at).toLocaleString()}</p>
                 {session.ended_at && <p>Ended At: {new Date(session.ended_at).toLocaleString()}</p>}
                 {session.transcript && (
                   <>
