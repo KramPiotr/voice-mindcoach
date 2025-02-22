@@ -8,22 +8,19 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
-import { useTheme } from 'next-themes';
 
 const colorSchemes = [
-  { name: 'Default', value: 'default' },
-  { name: 'Ocean Blue', value: 'ocean' },
-  { name: 'Forest Green', value: 'forest' },
-  { name: 'Royal Purple', value: 'royal' },
-  { name: 'Sunset Orange', value: 'sunset' }
+  { name: 'Default', value: 'default', description: 'Classic interface theme' },
+  { name: 'Ocean Blue', value: 'ocean', description: 'Calming blue tones' },
+  { name: 'Forest Green', value: 'forest', description: 'Natural green palette' },
+  { name: 'Royal Purple', value: 'royal', description: 'Rich purple theme' },
+  { name: 'Sunset Orange', value: 'sunset', description: 'Warm orange tones' }
 ];
 
 const Settings = () => {
   const { user } = useAuth();
   const { toast } = useToast();
-  const { theme, setTheme } = useTheme();
 
   const { data: settings, isLoading } = useQuery({
     queryKey: ['settings', user?.id],
@@ -35,14 +32,13 @@ const Settings = () => {
         .single();
 
       if (error && error.code !== 'PGRST116') throw error;
-      return data || { theme: 'light', color_scheme: 'default', show_realtime_transcript: true };
+      return data || { color_scheme: 'default', show_realtime_transcript: true };
     },
     enabled: !!user,
   });
 
   const { mutate: updateSettings, isPending } = useMutation({
     mutationFn: async (newSettings: {
-      theme?: string;
       color_scheme?: string;
       show_realtime_transcript?: boolean;
     }) => {
@@ -72,11 +68,6 @@ const Settings = () => {
     },
   });
 
-  const handleThemeChange = (newTheme: string) => {
-    setTheme(newTheme);
-    updateSettings({ theme: newTheme });
-  };
-
   const handleColorSchemeChange = (newScheme: string) => {
     updateSettings({ color_scheme: newScheme });
   };
@@ -97,34 +88,21 @@ const Settings = () => {
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="space-y-2">
-            <Label htmlFor="theme">Theme</Label>
-            <Select
-              value={settings?.theme || theme}
-              onValueChange={handleThemeChange}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select theme" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="light">Light</SelectItem>
-                <SelectItem value="dark">Dark</SelectItem>
-                <SelectItem value="system">System</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
             <Label htmlFor="colorScheme">Color Scheme</Label>
             <Select
               value={settings?.color_scheme || 'default'}
               onValueChange={handleColorSchemeChange}
             >
-              <SelectTrigger className="w-full">
+              <SelectTrigger className="w-full bg-background border-input">
                 <SelectValue placeholder="Select color scheme" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="bg-popover border border-border shadow-md">
                 {colorSchemes.map(scheme => (
-                  <SelectItem key={scheme.value} value={scheme.value}>
+                  <SelectItem 
+                    key={scheme.value} 
+                    value={scheme.value}
+                    className="hover:bg-accent hover:text-accent-foreground"
+                  >
                     {scheme.name}
                   </SelectItem>
                 ))}
