@@ -93,10 +93,10 @@ const Settings = () => {
               value={settings?.color_scheme || 'default'}
               onValueChange={handleColorSchemeChange}
             >
-              <SelectTrigger className="w-full bg-background border-input">
+              <SelectTrigger id="colorScheme" className="w-full bg-background">
                 <SelectValue placeholder="Select color scheme" />
               </SelectTrigger>
-              <SelectContent className="bg-popover border border-border shadow-md">
+              <SelectContent className="bg-background border border-input shadow-md">
                 {colorSchemes.map(scheme => (
                   <SelectItem 
                     key={scheme.value} 
