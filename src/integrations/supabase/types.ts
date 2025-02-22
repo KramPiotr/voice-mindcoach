@@ -9,6 +9,56 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      chat_interactions: {
+        Row: {
+          ai_response: string
+          audio_duration_ms: number | null
+          created_at: string | null
+          id: string
+          interaction_type: string | null
+          processing_time_ms: number | null
+          sentiment: number | null
+          session_id: string
+          successful: boolean | null
+          user_id: string
+          user_message: string
+        }
+        Insert: {
+          ai_response: string
+          audio_duration_ms?: number | null
+          created_at?: string | null
+          id?: string
+          interaction_type?: string | null
+          processing_time_ms?: number | null
+          sentiment?: number | null
+          session_id: string
+          successful?: boolean | null
+          user_id: string
+          user_message: string
+        }
+        Update: {
+          ai_response?: string
+          audio_duration_ms?: number | null
+          created_at?: string | null
+          id?: string
+          interaction_type?: string | null
+          processing_time_ms?: number | null
+          sentiment?: number | null
+          session_id?: string
+          successful?: boolean | null
+          user_id?: string
+          user_message?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_interactions_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       feedback: {
         Row: {
           created_at: string | null
@@ -29,6 +79,41 @@ export type Database = {
           user_id?: string | null
         }
         Relationships: []
+      }
+      performance_metrics: {
+        Row: {
+          created_at: string | null
+          id: string
+          metric_type: string
+          session_id: string
+          user_id: string
+          value: number
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          metric_type: string
+          session_id: string
+          user_id: string
+          value: number
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          metric_type?: string
+          session_id?: string
+          user_id?: string
+          value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "performance_metrics_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
