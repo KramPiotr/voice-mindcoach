@@ -1,6 +1,6 @@
 
-import React from 'react';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import React, { useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import LoadingSpinner from '@/components/LoadingSpinner';
@@ -11,16 +11,42 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/components/ui/use-toast';
 
 const colorSchemes = [
-  { name: 'Default', value: 'default', description: 'Classic interface theme' },
-  { name: 'Ocean Blue', value: 'ocean', description: 'Calming blue tones' },
-  { name: 'Forest Green', value: 'forest', description: 'Natural green palette' },
-  { name: 'Royal Purple', value: 'royal', description: 'Rich purple theme' },
-  { name: 'Sunset Orange', value: 'sunset', description: 'Warm orange tones' }
+  { name: 'Default', value: 'default', colors: {
+    primary: '#606C38',
+    secondary: '#F4F1DE',
+    background: '#FFFFFF',
+    text: '#283618'
+  }},
+  { name: 'Ocean Blue', value: 'ocean', colors: {
+    primary: '#0EA5E9',
+    secondary: '#F0F9FF',
+    background: '#FFFFFF',
+    text: '#0C4A6E'
+  }},
+  { name: 'Forest Green', value: 'forest', colors: {
+    primary: '#22C55E',
+    secondary: '#F0FDF4',
+    background: '#FFFFFF',
+    text: '#166534'
+  }},
+  { name: 'Royal Purple', value: 'royal', colors: {
+    primary: '#9b87f5',
+    secondary: '#F5F3FF',
+    background: '#FFFFFF',
+    text: '#5B21B6'
+  }},
+  { name: 'Sunset Orange', value: 'sunset', colors: {
+    primary: '#FEC6A1',
+    secondary: '#FFF7ED',
+    background: '#FFFFFF',
+    text: '#9A3412'
+  }}
 ];
 
 const Settings = () => {
   const { user } = useAuth();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const { data: settings, isLoading } = useQuery({
     queryKey: ['settings', user?.id],
@@ -53,6 +79,7 @@ const Settings = () => {
       if (error) throw error;
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['settings', user?.id] });
       toast({
         title: "Settings updated",
         description: "Your preferences have been saved successfully."
@@ -75,6 +102,18 @@ const Settings = () => {
   const handleTranscriptToggle = (checked: boolean) => {
     updateSettings({ show_realtime_transcript: checked });
   };
+
+  useEffect(() => {
+    if (settings?.color_scheme) {
+      const scheme = colorSchemes.find(s => s.value === settings.color_scheme);
+      if (scheme) {
+        document.documentElement.style.setProperty('--primary', scheme.colors.primary);
+        document.documentElement.style.setProperty('--secondary', scheme.colors.secondary);
+        document.documentElement.style.setProperty('--background', scheme.colors.background);
+        document.documentElement.style.setProperty('--foreground', scheme.colors.text);
+      }
+    }
+  }, [settings?.color_scheme]);
 
   if (isLoading) {
     return <LoadingSpinner message="Loading settings..." />;
