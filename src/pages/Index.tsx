@@ -1,5 +1,6 @@
-
 import React, { useState, useRef, useEffect } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import LoadingSpinner from '@/components/LoadingSpinner';
 import Sidebar from '../components/Sidebar';
 import CallControls from '../components/CallControls';
 import AudioWaveform from '../components/AudioWaveform';
@@ -7,7 +8,6 @@ import CallTimer from '../components/CallTimer';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
 
 const Index = () => {
   const [isMuted, setIsMuted] = useState(false);
@@ -20,12 +20,19 @@ const Index = () => {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const navigate = useNavigate();
   const { user } = useAuth();
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     if (!user) {
       navigate('/auth');
     }
+    const timer = setTimeout(() => setIsLoading(false), 1000);
+    return () => clearTimeout(timer);
   }, [user, navigate]);
+
+  if (isLoading) {
+    return <LoadingSpinner message="Loading AI Coach..." />;
+  }
 
   const handleToggleMute = () => {
     setIsMuted(!isMuted);
@@ -109,7 +116,6 @@ const Index = () => {
           audioRef.current.play();
         }
 
-        // Store AI response
         setAiResponses(prev => [...prev, "Hello! I'm your AI Coach. How can I help you today?"]);
       }
     } catch (error) {

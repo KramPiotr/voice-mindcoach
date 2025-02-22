@@ -1,78 +1,57 @@
-
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Textarea } from '@/components/ui/textarea';
-import { Button } from '@/components/ui/button';
-import { useAuth } from '@/contexts/AuthContext';
+import React from 'react';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
+import { useAuth } from '@/contexts/AuthContext';
+import LoadingSpinner from '@/components/LoadingSpinner';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 const Feedback = () => {
   const { user } = useAuth();
-  const navigate = useNavigate();
-  const [message, setMessage] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  React.useEffect(() => {
-    if (!user) {
-      navigate('/auth');
-    }
-  }, [user, navigate]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!message.trim()) {
-      toast.error('Please enter your feedback');
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      const { error } = await supabase
+  const { data: feedback, isLoading } = useQuery({
+    queryKey: ['feedback', user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
         .from('feedback')
-        .insert([{ message, user_id: user?.id }]);
+        .select('*')
+        .eq('user_id', user?.id)
+        .order('created_at', { ascending: false });
 
       if (error) throw error;
+      return data;
+    },
+    enabled: !!user,
+  });
 
-      toast.success('Thank you for your feedback!');
-      setMessage('');
-    } catch (error) {
-      console.error('Error submitting feedback:', error);
-      toast.error('Failed to submit feedback. Please try again.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  if (isLoading) {
+    return <LoadingSpinner message="Loading feedback..." />;
+  }
 
   return (
-    <div className="max-w-2xl mx-auto p-8">
-      <h1 className="text-3xl font-bold mb-8">Feedback</h1>
-      
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="space-y-2">
-          <label htmlFor="feedback" className="text-lg font-medium">
-            Share your thoughts with us
-          </label>
-          <p className="text-sm text-muted-foreground">
-            We appreciate your feedback to help us improve our AI Coach
-          </p>
-          <Textarea
-            id="feedback"
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            placeholder="Type your feedback here..."
-            className="min-h-[200px]"
-          />
-        </div>
-
-        <Button 
-          type="submit" 
-          className="w-full"
-          disabled={isSubmitting}
-        >
-          {isSubmitting ? 'Submitting...' : 'Submit Feedback'}
-        </Button>
-      </form>
+    <div className="container mx-auto py-8">
+      <Card>
+        <CardHeader>
+          <CardTitle>Feedback</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {feedback && feedback.length > 0 ? (
+            <ul>
+              {feedback.map((item) => (
+                <li key={item.id} className="mb-4 p-4 border rounded-md">
+                  <p>Rating: {item.rating}</p>
+                  <p>Comment: {item.comment}</p>
+                  <p className="text-sm text-gray-500">
+                    Submitted at:{' '}
+                    {new Date(item.created_at).toLocaleDateString()}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p>No feedback available.</p>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 };
