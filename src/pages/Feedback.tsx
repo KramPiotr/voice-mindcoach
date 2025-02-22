@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -38,8 +39,7 @@ const Feedback = () => {
             <ul>
               {feedback.map((item) => (
                 <li key={item.id} className="mb-4 p-4 border rounded-md">
-                  <p>Rating: {item.rating}</p>
-                  <p>Comment: {item.comment}</p>
+                  <p>{item.message}</p>
                   <p className="text-sm text-gray-500">
                     Submitted at:{' '}
                     {new Date(item.created_at).toLocaleDateString()}
