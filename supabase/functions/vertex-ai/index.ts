@@ -4,7 +4,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const projectId = 'your-project-id'; // This will come from the service account
 const location = 'us-central1';
-const model = 'gemini-pro'; // Updated to use Gemini Pro
+const model = 'gemini-2.0-pro-exp-02-05'; // Updated to use the experimental model
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -93,7 +93,6 @@ serve(async (req) => {
     const serviceAccount = JSON.parse(Deno.env.get('GOOGLE_SERVICE_ACCOUNT') || '{}');
     const accessToken = await getAccessToken(serviceAccount);
 
-    // Updated endpoint for Gemini Pro
     const endpoint = `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/${model}:predict`;
 
     const response = await fetch(endpoint, {
