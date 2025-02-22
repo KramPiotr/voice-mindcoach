@@ -4,7 +4,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const projectId = 'your-project-id'; // This will come from the service account
 const location = 'us-central1';
-const model = 'chat-bison';
+const model = 'gemini-pro'; // Updated to use Gemini Pro
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -47,7 +47,6 @@ async function createJWT(serviceAccount: any): Promise<string> {
   const payloadB64 = btoa(JSON.stringify(payload));
   const signatureInput = `${headerB64}.${payloadB64}`;
 
-  // Convert private key from PEM to CryptoKey
   const privateKey = await crypto.subtle.importKey(
     'pkcs8',
     pemToBinary(serviceAccount.private_key),
@@ -83,7 +82,6 @@ function pemToBinary(pem: string): ArrayBuffer {
 }
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -95,6 +93,7 @@ serve(async (req) => {
     const serviceAccount = JSON.parse(Deno.env.get('GOOGLE_SERVICE_ACCOUNT') || '{}');
     const accessToken = await getAccessToken(serviceAccount);
 
+    // Updated endpoint for Gemini Pro
     const endpoint = `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/${model}:predict`;
 
     const response = await fetch(endpoint, {
@@ -104,21 +103,33 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        instances: [{
-          context: "You are a helpful AI coach having a conversation. Keep your responses clear, concise, and engaging. Aim to provide actionable advice and maintain a supportive tone.",
-          messages: [{ author: "user", content: transcript }]
-        }],
-        parameters: {
+        contents: [
+          {
+            role: "user",
+            parts: [{ text: transcript }]
+          }
+        ],
+        generationConfig: {
           temperature: 0.7,
           maxOutputTokens: 256,
           topP: 0.8,
           topK: 40
-        }
+        },
+        safetySettings: [
+          {
+            category: "HARM_CATEGORY_HARASSMENT",
+            threshold: "BLOCK_LOW_AND_ABOVE"
+          },
+          {
+            category: "HARM_CATEGORY_HATE_SPEECH",
+            threshold: "BLOCK_LOW_AND_ABOVE"
+          }
+        ]
       }),
     });
 
     const data = await response.json();
-    console.log('Vertex AI response:', data);
+    console.log('Gemini response:', data);
 
     if (data.error) {
       throw new Error(data.error.message);
@@ -137,3 +148,4 @@ serve(async (req) => {
     });
   }
 });
+
