@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import LoadingSpinner from '@/components/LoadingSpinner';
@@ -16,6 +17,9 @@ const Index = () => {
   const [currentSession, setCurrentSession] = useState<string | null>(null);
   const [transcript, setTranscript] = useState<string[]>([]);
   const [aiResponses, setAiResponses] = useState<string[]>([]);
+  const [isRecording, setIsRecording] = useState(false);
+  const [audioChunks, setAudioChunks] = useState<Blob[]>([]);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -29,9 +33,86 @@ const Index = () => {
     return () => clearTimeout(timer);
   }, [user, navigate]);
 
-  if (isLoading) {
-    return <LoadingSpinner message="Loading AI Coach..." />;
-  }
+  const handleDataAvailable = async (event: BlobEvent) => {
+    if (event.data.size > 0 && currentSession) {
+      try {
+        const reader = new FileReader();
+        reader.onloadend = async () => {
+          const base64Audio = (reader.result as string).split(',')[1];
+          
+          const { data, error } = await supabase.functions.invoke('speech-to-text', {
+            body: { 
+              audio: base64Audio,
+              sessionId: currentSession,
+              userId: user?.id
+            }
+          });
+
+          if (error) {
+            console.error('Error processing speech:', error);
+            toast.error('Failed to process speech');
+            return;
+          }
+
+          if (data.transcript) {
+            setTranscript(prev => [...prev, data.transcript]);
+          }
+
+          if (data.aiResponse) {
+            setAiResponses(prev => [...prev, data.aiResponse]);
+            
+            // Convert AI response to speech
+            const { data: ttsData, error: ttsError } = await supabase.functions.invoke('text-to-speech', {
+              body: { text: data.aiResponse }
+            });
+
+            if (ttsError) {
+              console.error('Error converting to speech:', ttsError);
+              return;
+            }
+
+            if (ttsData?.audioContent) {
+              const audioBlob = base64ToBlob(ttsData.audioContent, 'audio/mpeg');
+              const audioUrl = URL.createObjectURL(audioBlob);
+              
+              if (audioRef.current) {
+                audioRef.current.src = audioUrl;
+                audioRef.current.play();
+              }
+            }
+          }
+        };
+        reader.readAsDataURL(event.data);
+      } catch (error) {
+        console.error('Error processing audio:', error);
+        toast.error('Failed to process audio');
+      }
+    }
+  };
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      
+      mediaRecorder.ondataavailable = handleDataAvailable;
+      mediaRecorder.start(3000); // Capture in 3-second chunks
+      setIsRecording(true);
+      setAudioChunks([]);
+    } catch (error) {
+      console.error('Error accessing microphone:', error);
+      toast.error('Failed to access microphone');
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+      setIsRecording(false);
+    }
+  };
 
   const handleToggleMute = () => {
     setIsMuted(!isMuted);
@@ -60,6 +141,7 @@ const Index = () => {
       setStartTime(Date.now());
       setTranscript([]);
       setAiResponses([]);
+      await startRecording();
       testTextToSpeech();
     } catch (error) {
       console.error('Error starting session:', error);
@@ -68,6 +150,8 @@ const Index = () => {
   };
 
   const handleEndCall = async () => {
+    stopRecording();
+    
     if (currentSession) {
       try {
         const { error } = await supabase
@@ -93,6 +177,15 @@ const Index = () => {
     if (audioRef.current) {
       audioRef.current.pause();
     }
+  };
+
+  const base64ToBlob = (base64: string, type: string) => {
+    const binaryString = window.atob(base64);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+    return new Blob([bytes], { type });
   };
 
   const testTextToSpeech = async () => {
@@ -125,14 +218,9 @@ const Index = () => {
     }
   };
 
-  const base64ToBlob = (base64: string, type: string) => {
-    const binaryString = window.atob(base64);
-    const bytes = new Uint8Array(binaryString.length);
-    for (let i = 0; i < binaryString.length; i++) {
-      bytes[i] = binaryString.charCodeAt(i);
-    }
-    return new Blob([bytes], { type });
-  };
+  if (isLoading) {
+    return <LoadingSpinner message="Loading AI Coach..." />;
+  }
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -154,12 +242,29 @@ const Index = () => {
           <div className="bg-white rounded-2xl p-8 shadow-lg">
             <div className="text-center mb-8">
               <div className="w-24 h-24 bg-primary/10 rounded-full mx-auto mb-4 flex items-center justify-center">
-                <div className="w-16 h-16 bg-primary rounded-full animate-pulse" />
+                <div className={`w-16 h-16 bg-primary rounded-full ${isRecording ? 'animate-pulse' : ''}`} />
               </div>
-              <p className="text-lg text-primary">Listening...</p>
+              <p className="text-lg text-primary">{isRecording ? 'Listening...' : 'Call Active'}</p>
             </div>
             
-            <AudioWaveform />
+            <div className="space-y-4 mb-8">
+              {transcript.map((text, index) => (
+                <div key={index} className="flex flex-col gap-4">
+                  <div className="bg-gray-100 p-4 rounded-lg">
+                    <p className="text-sm text-gray-500">You:</p>
+                    <p>{text}</p>
+                  </div>
+                  {aiResponses[index] && (
+                    <div className="bg-primary/10 p-4 rounded-lg">
+                      <p className="text-sm text-primary">AI Coach:</p>
+                      <p>{aiResponses[index]}</p>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+            
+            <AudioWaveform isActive={isRecording} />
             
             <CallControls
               isMuted={isMuted}
