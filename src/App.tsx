@@ -30,15 +30,16 @@ function App() {
               <div className={`transition-all duration-300 ${sidebarOpen ? 'translate-x-0' : '-translate-x-64'}`}>
                 <Sidebar />
               </div>
-              <div className={`flex-1 transition-all duration-300 ${sidebarOpen ? 'ml-64' : 'ml-0'}`}>
+              <div className="absolute top-4 transition-all duration-300" style={{ left: sidebarOpen ? '256px' : '16px' }}>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="fixed top-4 left-4 z-50"
                   onClick={() => setSidebarOpen(!sidebarOpen)}
                 >
                   <Menu className="h-6 w-6" />
                 </Button>
+              </div>
+              <div className={`flex-1 transition-all duration-300 ${sidebarOpen ? 'ml-64' : 'ml-0'}`}>
                 <main className="p-8">
                   <Routes>
                     <Route path="/auth" element={<Auth />} />
