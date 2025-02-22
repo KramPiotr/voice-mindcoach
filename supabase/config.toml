@@ -1,4 +1,19 @@
 
 project_id = "uvpopbenjmnkjzjdlsnw"
-[functions.text-to-speech]
-verify_jwt = false
+
+[api]
+enabled = true
+[analytics]
+enabled = false
+[auth]
+enabled = true
+[db]
+enabled = true
+[realtime]
+enabled = true
+[storage]
+enabled = true
+
+[[functions]]
+name = "send-feedback"
+verify_jwt = true
