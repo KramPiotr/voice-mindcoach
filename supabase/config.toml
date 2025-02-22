@@ -22,3 +22,6 @@ verify_jwt = true
 [functions.speech-to-text]
 verify_jwt = true
 
+[functions.voice-call]
+verify_jwt = true
+
