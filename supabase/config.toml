@@ -3,17 +3,18 @@ project_id = "uvpopbenjmnkjzjdlsnw"
 
 [api]
 enabled = true
+
 [analytics]
 enabled = false
+
 [auth]
 enabled = true
-[db]
-enabled = true
+
 [realtime]
 enabled = true
+
 [storage]
 enabled = true
 
-[[functions]]
-name = "send-feedback"
+[functions.send-feedback]
 verify_jwt = true
