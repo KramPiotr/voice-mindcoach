@@ -28,19 +28,11 @@ const Feedback = () => {
 
     setIsSubmitting(true);
     try {
-      // Store feedback in database
-      const { error: dbError } = await supabase
+      const { error } = await supabase
         .from('feedback')
         .insert([{ message, user_id: user?.id }]);
 
-      if (dbError) throw dbError;
-
-      // Send email
-      const { error: emailError } = await supabase.functions.invoke('send-feedback', {
-        body: { message, userId: user?.id }
-      });
-
-      if (emailError) throw emailError;
+      if (error) throw error;
 
       toast.success('Thank you for your feedback!');
       setMessage('');
