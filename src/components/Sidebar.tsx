@@ -1,54 +1,71 @@
-
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Home, User, BookOpen, MessageSquare, Settings } from 'lucide-react';
+import { Home, User, BookOpen, MessageSquare, Settings, LogOut } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
 
 const Sidebar = () => {
+  const { signOut } = useAuth();
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      toast.success('Signed out successfully');
+    } catch (error: any) {
+      toast.error('Error signing out');
+    }
+  };
+
   return (
-    <div className="fixed left-0 top-0 h-full w-64 bg-secondary p-6 flex flex-col border-r border-muted">
-      <div className="mb-8">
-        <div className="h-12 w-12 bg-primary rounded-full mb-4"></div>
-        <h2 className="text-xl font-semibold text-primary">AI Coach</h2>
+    <div className="fixed left-0 top-0 h-screen w-64 bg-white shadow-lg p-6">
+      <div className="flex flex-col h-full">
+        <h1 className="text-2xl font-bold text-primary mb-8">AI Coach</h1>
+        <div className="flex-grow">
+          <nav className="flex-1">
+            <ul className="space-y-4">
+              <li>
+                <Link to="/" className="flex items-center gap-3 text-muted-foreground hover:text-primary transition-colors p-2 rounded-lg hover:bg-muted">
+                  <Home size={20} />
+                  <span>Home</span>
+                </Link>
+              </li>
+              <li>
+                <Link to="/profile" className="flex items-center gap-3 text-muted-foreground hover:text-primary transition-colors p-2 rounded-lg hover:bg-muted">
+                  <User size={20} />
+                  <span>My Profile</span>
+                </Link>
+              </li>
+              <li>
+                <Link to="/history" className="flex items-center gap-3 text-muted-foreground hover:text-primary transition-colors p-2 rounded-lg hover:bg-muted">
+                  <BookOpen size={20} />
+                  <span>Session History</span>
+                </Link>
+              </li>
+              <li>
+                <Link to="/feedback" className="flex items-center gap-3 text-muted-foreground hover:text-primary transition-colors p-2 rounded-lg hover:bg-muted">
+                  <MessageSquare size={20} />
+                  <span>Feedback</span>
+                </Link>
+              </li>
+              <li>
+                <Link to="/settings" className="flex items-center gap-3 text-muted-foreground hover:text-primary transition-colors p-2 rounded-lg hover:bg-muted">
+                  <Settings size={20} />
+                  <span>Settings</span>
+                </Link>
+              </li>
+            </ul>
+          </nav>
+        </div>
+        <Button 
+          variant="ghost" 
+          className="w-full justify-start" 
+          onClick={handleSignOut}
+        >
+          <LogOut className="mr-2 h-4 w-4" />
+          Sign Out
+        </Button>
       </div>
-      
-      <nav className="flex-1">
-        <ul className="space-y-4">
-          <li>
-            <Link to="/" className="flex items-center gap-3 text-muted-foreground hover:text-primary transition-colors p-2 rounded-lg hover:bg-muted">
-              <Home size={20} />
-              <span>Home</span>
-            </Link>
-          </li>
-          <li>
-            <Link to="/profile" className="flex items-center gap-3 text-muted-foreground hover:text-primary transition-colors p-2 rounded-lg hover:bg-muted">
-              <User size={20} />
-              <span>My Profile</span>
-            </Link>
-          </li>
-          <li>
-            <Link to="/history" className="flex items-center gap-3 text-muted-foreground hover:text-primary transition-colors p-2 rounded-lg hover:bg-muted">
-              <BookOpen size={20} />
-              <span>Session History</span>
-            </Link>
-          </li>
-          <li>
-            <Link to="/feedback" className="flex items-center gap-3 text-muted-foreground hover:text-primary transition-colors p-2 rounded-lg hover:bg-muted">
-              <MessageSquare size={20} />
-              <span>Feedback</span>
-            </Link>
-          </li>
-          <li>
-            <Link to="/settings" className="flex items-center gap-3 text-muted-foreground hover:text-primary transition-colors p-2 rounded-lg hover:bg-muted">
-              <Settings size={20} />
-              <span>Settings</span>
-            </Link>
-          </li>
-        </ul>
-      </nav>
-      
-      <button className="mt-auto w-full bg-primary text-white py-3 rounded-lg hover:bg-primary/90 transition-colors">
-        Book a Call
-      </button>
     </div>
   );
 };
