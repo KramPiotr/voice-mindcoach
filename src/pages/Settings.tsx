@@ -1,13 +1,29 @@
 
 import React from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Button } from '@/components/ui/button';
+import { useToast } from '@/components/ui/use-toast';
+import { useTheme } from 'next-themes';
+
+const colorSchemes = [
+  { name: 'Default', value: 'default' },
+  { name: 'Ocean Blue', value: 'ocean' },
+  { name: 'Forest Green', value: 'forest' },
+  { name: 'Royal Purple', value: 'royal' },
+  { name: 'Sunset Orange', value: 'sunset' }
+];
 
 const Settings = () => {
   const { user } = useAuth();
+  const { toast } = useToast();
+  const { theme, setTheme } = useTheme();
 
   const { data: settings, isLoading } = useQuery({
     queryKey: ['settings', user?.id],
@@ -19,10 +35,55 @@ const Settings = () => {
         .single();
 
       if (error && error.code !== 'PGRST116') throw error;
-      return data;
+      return data || { theme: 'light', color_scheme: 'default', show_realtime_transcript: true };
     },
     enabled: !!user,
   });
+
+  const { mutate: updateSettings, isPending } = useMutation({
+    mutationFn: async (newSettings: {
+      theme?: string;
+      color_scheme?: string;
+      show_realtime_transcript?: boolean;
+    }) => {
+      const { error } = await supabase
+        .from('user_settings')
+        .upsert({
+          user_id: user?.id,
+          ...settings,
+          ...newSettings,
+        });
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast({
+        title: "Settings updated",
+        description: "Your preferences have been saved successfully."
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error updating settings",
+        description: "There was a problem saving your preferences. Please try again.",
+        variant: "destructive"
+      });
+      console.error('Error updating settings:', error);
+    },
+  });
+
+  const handleThemeChange = (newTheme: string) => {
+    setTheme(newTheme);
+    updateSettings({ theme: newTheme });
+  };
+
+  const handleColorSchemeChange = (newScheme: string) => {
+    updateSettings({ color_scheme: newScheme });
+  };
+
+  const handleTranscriptToggle = (checked: boolean) => {
+    updateSettings({ show_realtime_transcript: checked });
+  };
 
   if (isLoading) {
     return <LoadingSpinner message="Loading settings..." />;
@@ -34,24 +95,57 @@ const Settings = () => {
         <CardHeader>
           <CardTitle>Settings</CardTitle>
         </CardHeader>
-        <CardContent>
-          {settings ? (
-            <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <span>Theme</span>
-                <span className="font-medium">{settings.theme}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span>Show Realtime Transcript</span>
-                <span className="font-medium">{settings.show_realtime_transcript ? 'Yes' : 'No'}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span>Color Scheme</span>
-                <span className="font-medium">{settings.color_scheme}</span>
-              </div>
+        <CardContent className="space-y-6">
+          <div className="space-y-2">
+            <Label htmlFor="theme">Theme</Label>
+            <Select
+              value={settings?.theme || theme}
+              onValueChange={handleThemeChange}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select theme" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="light">Light</SelectItem>
+                <SelectItem value="dark">Dark</SelectItem>
+                <SelectItem value="system">System</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="colorScheme">Color Scheme</Label>
+            <Select
+              value={settings?.color_scheme || 'default'}
+              onValueChange={handleColorSchemeChange}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select color scheme" />
+              </SelectTrigger>
+              <SelectContent>
+                {colorSchemes.map(scheme => (
+                  <SelectItem key={scheme.value} value={scheme.value}>
+                    {scheme.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <Label htmlFor="transcript">Show Realtime Transcript</Label>
+            <Switch
+              id="transcript"
+              checked={settings?.show_realtime_transcript}
+              onCheckedChange={handleTranscriptToggle}
+              disabled={isPending}
+            />
+          </div>
+
+          {isPending && (
+            <div className="text-sm text-muted-foreground">
+              Saving changes...
             </div>
-          ) : (
-            <p>No settings found.</p>
           )}
         </CardContent>
       </Card>
