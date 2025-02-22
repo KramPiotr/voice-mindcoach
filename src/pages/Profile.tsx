@@ -8,6 +8,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import LoadingSpinner from '@/components/LoadingSpinner';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 const Profile = () => {
   const { user } = useAuth();
@@ -62,39 +64,50 @@ const Profile = () => {
   };
 
   if (isLoading) {
-    return <div className="p-8">Loading profile...</div>;
+    return <LoadingSpinner message="Loading profile..." />;
   }
 
   return (
-    <div className="max-w-2xl mx-auto p-8">
-      <h1 className="text-3xl font-bold mb-8">My Profile</h1>
-      
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="space-y-2">
-          <Label htmlFor="email">Email</Label>
-          <Input
-            id="email"
-            type="email"
-            value={user?.email}
-            disabled
-            className="bg-muted"
-          />
-        </div>
+    <div className="max-w-2xl mx-auto p-8 space-y-6">
+      <Card className="w-full">
+        <CardHeader>
+          <CardTitle className="text-2xl font-semibold">My Profile</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={user?.email}
+                  disabled
+                  className="bg-muted"
+                />
+              </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="fullName">Full Name</Label>
-          <Input
-            id="fullName"
-            name="fullName"
-            defaultValue={profile?.full_name || ''}
-            placeholder="Enter your full name"
-          />
-        </div>
+              <div className="space-y-2">
+                <Label htmlFor="fullName">Full Name</Label>
+                <Input
+                  id="fullName"
+                  name="fullName"
+                  defaultValue={profile?.full_name || ''}
+                  placeholder="Enter your full name"
+                />
+              </div>
 
-        <Button type="submit" className="w-full">
-          Save Changes
-        </Button>
-      </form>
+              <Button 
+                type="submit" 
+                className="w-full transition-all hover:scale-[1.02]"
+                disabled={updateProfile.isPending}
+              >
+                {updateProfile.isPending ? 'Saving...' : 'Save Changes'}
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
     </div>
   );
 };
