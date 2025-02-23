@@ -23,7 +23,7 @@ const Index = () => {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, accessToken } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -67,67 +67,93 @@ const Index = () => {
               return;
             }
 
+            const response = await fetch(
+              `${import.meta.env.VITE_API_URL}/api/tools/store/`,
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `JWT ${accessToken}`,
+                },
+                body: JSON.stringify({
+                  transcript: sttData?.text,
+                }),
+              }
+            );
+
             if (sttData?.text) {
               console.log("Received transcript:", sttData.text);
               setTranscript((prev) => [...prev, sttData.text]);
 
-              // Get AI response using vertex-ai function
-              console.log("Sending transcript to Vertex AI...");
-              const { data: aiData, error: aiError } =
-                await supabase.functions.invoke("vertex-ai", {
-                  body: {
-                    text: sttData.text,
-                    sessionId: currentSession,
-                    userId: user?.id,
-                  },
-                });
-
-              console.log("Vertex AI response:", {
-                data: aiData,
-                error: aiError,
-              });
-
-              if (aiError) {
-                console.error("AI response error:", aiError);
-                toast.error("Error getting AI response");
-                return;
-              }
-
-              if (aiData?.response) {
-                console.log("Received AI response:", aiData.response);
-                setAiResponses((prev) => [...prev, aiData.response]);
-
-                // Convert AI response to speech
-                console.log("Converting AI response to speech...");
-                const { data: ttsData, error: ttsError } =
-                  await supabase.functions.invoke("text-to-speech", {
-                    body: { text: aiData.response },
-                  });
-
-                console.log("Text-to-speech response:", {
-                  data: ttsData,
-                  error: ttsError,
-                });
-
-                if (ttsError) {
-                  console.error("Text-to-speech error:", ttsError);
-                  toast.error("Error converting response to speech");
-                  return;
-                }
-
-                if (ttsData?.audioContent) {
-                  const audioBlob = base64ToBlob(
-                    ttsData.audioContent,
-                    "audio/mpeg"
+              // Poll the new endpoint until we get the "done" response
+              const pollForAiResponse = async () => {
+                try {
+                  const response = await fetch(
+                    `${import.meta.env.VITE_API_URL}/api/tools/status/`,
+                    {
+                      method: "GET",
+                      headers: {
+                        "Content-Type": "application/json",
+                        Authorization: `JWT ${accessToken}`,
+                      },
+                    }
                   );
-                  const audioUrl = URL.createObjectURL(audioBlob);
 
-                  if (audioRef.current) {
-                    audioRef.current.src = audioUrl;
-                    await audioRef.current.play();
+                  const aiData = await response.json();
+                  console.log("New endpoint response:", aiData);
+
+                  if (!response.ok) {
+                    console.error("AI response error:", aiData);
+                    toast.error("Error getting AI response");
+                    return;
                   }
+
+                  if (aiData?.["ai_response"] === "done") {
+                    console.log("Received AI response:", aiData.response);
+                    setAiResponses((prev) => [...prev, aiData.response]);
+
+                    // Convert AI response to speech
+                    console.log("Converting AI response to speech...");
+                    const { data: ttsData, error: ttsError } =
+                      await supabase.functions.invoke("text-to-speech", {
+                        body: { text: aiData.response },
+                      });
+
+                    console.log("Text-to-speech response:", {
+                      data: ttsData,
+                      error: ttsError,
+                    });
+
+                    if (ttsError) {
+                      console.error("Text-to-speech error:", ttsError);
+                      toast.error("Error converting response to speech");
+                      return;
+                    }
+
+                    if (ttsData?.audioContent) {
+                      const audioBlob = base64ToBlob(
+                        ttsData.audioContent,
+                        "audio/mpeg"
+                      );
+                      const audioUrl = URL.createObjectURL(audioBlob);
+
+                      if (audioRef.current) {
+                        audioRef.current.src = audioUrl;
+                        await audioRef.current.play();
+                      }
+                    }
+                  } else {
+                    // If not "done", poll again after a delay
+                    setTimeout(pollForAiResponse, 3000);
+                  }
+                } catch (error) {
+                  console.error("Error polling AI response:", error);
+                  toast.error("Error getting AI response");
                 }
-              }
+              };
+
+              // Start polling for AI response
+              pollForAiResponse();
             }
           } catch (error) {
             console.error("Error in FileReader callback:", error);
@@ -171,7 +197,8 @@ const Index = () => {
 
       mediaRecorderRef.current = mediaRecorder;
 
-      mediaRecorder.ondataavailable = (event: BlobEvent) => handleDataAvailable(event, sessionId);
+      mediaRecorder.ondataavailable = (event: BlobEvent) =>
+        handleDataAvailable(event, sessionId);
       mediaRecorder.start(3000); // Capture in 3-second chunks
       console.log("MediaRecorder started");
       setIsRecording(true);
@@ -181,7 +208,7 @@ const Index = () => {
     }
   };
 
-  const stopRecording = () => {
+  const stopRecording = async () => {
     if (mediaRecorderRef.current && isRecording) {
       console.log("Stopping MediaRecorder...");
       mediaRecorderRef.current.stop();
@@ -189,6 +216,18 @@ const Index = () => {
         .getTracks()
         .forEach((track) => track.stop());
       setIsRecording(false);
+      await fetch(`${import.meta.env.VITE_API_URL}/api/tools/stop`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `JWT ${accessToken}`,
+        },
+        body: JSON.stringify({
+          sessionId: currentSession,
+          transcript: transcript.join("\n"),
+          aiResponses: aiResponses,
+        }),
+      });
       console.log("MediaRecorder stopped");
     } else {
       console.log("Cannot stop recording:", {
@@ -379,7 +418,9 @@ const Index = () => {
             <Tabs defaultValue="transcript" className="w-full mt-8">
               <TabsList className="grid grid-cols-2 bg-gray-800">
                 <TabsTrigger value="transcript">Transcript</TabsTrigger>
-                <TabsTrigger value="coaching-status">Coaching Status</TabsTrigger>
+                <TabsTrigger value="coaching-status">
+                  Coaching Status
+                </TabsTrigger>
               </TabsList>
 
               <TabsContent value="transcript" className="mt-6">

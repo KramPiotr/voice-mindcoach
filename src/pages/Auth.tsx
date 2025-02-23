@@ -1,36 +1,39 @@
-
-import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
+import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useAuth } from "@/contexts/AuthContext";
 
 const Auth = () => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
   const navigate = useNavigate();
+  const { setAccessToken } = useAuth();
 
   useEffect(() => {
-    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session) {
-        navigate('/');
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        if (session) {
+          navigate("/");
+        }
       }
-    });
+    );
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
-        navigate('/');
+        navigate("/");
       }
     });
 
@@ -51,16 +54,19 @@ const Auth = () => {
           password,
         });
         error = signUpError;
-        const response = await fetch('https://adapt-ai-backend.onrender.com/api/auth/signup/', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            email,
-            username: email.split('@')[0], // Assuming username is derived from email
-          }),
-        })
+        const response = await fetch(
+          `${import.meta.env.VITE_API_URL}/api/auth/signup/`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              email,
+              username: email.split("@")[0], // Assuming username is derived from email
+            }),
+          }
+        );
         console.log(response);
       } else {
         const { error: signInError } = await supabase.auth.signInWithPassword({
@@ -68,26 +74,33 @@ const Auth = () => {
           password,
         });
         error = signInError;
-        const response = await fetch('https://adapt-ai-backend.onrender.com/api/auth/login/', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            identifier: email,
-            code: email.split('@')[0], // Assuming username is derived from email
-          }),
-        });
-        console.log(response);
+        const response = await fetch(
+          `${import.meta.env.VITE_API_URL}/api/auth/login/`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              identifier: email,
+              code: email.split("@")[0], // Assuming username is derived from email
+            }),
+          }
+        );
+        const data = await response.json();
+        console.log(data);
+        setAccessToken(data.access);
       }
 
       if (error) throw error;
 
       if (isSignUp) {
-        toast.success('Registration successful! Please check your email to confirm your account.');
+        toast.success(
+          "Registration successful! Please check your email to confirm your account."
+        );
       } else {
-        toast.success('Logged in successfully!');
-        navigate('/');
+        toast.success("Logged in successfully!");
+        navigate("/");
       }
     } catch (error: any) {
       toast.error(error.message);
@@ -100,11 +113,11 @@ const Auth = () => {
     <div className="min-h-screen bg-secondary flex items-center justify-center p-4">
       <Card className="w-full max-w-md border-2 border-primary/20">
         <CardHeader>
-          <CardTitle>{isSignUp ? 'Create Account' : 'Welcome Back'}</CardTitle>
+          <CardTitle>{isSignUp ? "Create Account" : "Welcome Back"}</CardTitle>
           <CardDescription>
             {isSignUp
-              ? 'Sign up to start your AI coaching journey'
-              : 'Sign in to continue your coaching sessions'}
+              ? "Sign up to start your AI coaching journey"
+              : "Sign in to continue your coaching sessions"}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -133,17 +146,23 @@ const Auth = () => {
                 className="border-2 focus-visible:border-primary/30"
               />
             </div>
-            <Button type="submit" className="w-full border-2 hover:border-primary/30" disabled={loading}>
-              {isSignUp ? 'Sign Up' : 'Sign In'}
+            <Button
+              type="submit"
+              className="w-full border-2 hover:border-primary/30"
+              disabled={loading}
+            >
+              {isSignUp ? "Sign Up" : "Sign In"}
             </Button>
             <p className="text-center text-sm text-muted-foreground">
-              {isSignUp ? 'Already have an account? ' : "Don't have an account? "}
+              {isSignUp
+                ? "Already have an account? "
+                : "Don't have an account? "}
               <button
                 type="button"
                 onClick={() => setIsSignUp(!isSignUp)}
                 className="text-primary hover:underline"
               >
-                {isSignUp ? 'Sign In' : 'Sign Up'}
+                {isSignUp ? "Sign In" : "Sign Up"}
               </button>
             </p>
           </form>
