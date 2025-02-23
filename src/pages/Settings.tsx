@@ -12,8 +12,8 @@ import { useToast } from '@/components/ui/use-toast';
 
 const colorSchemes = [
   { name: 'Default', value: 'default', colors: {
-    primary: '#606C38',
-    secondary: '#F4F1DE',
+    primary: '#8CAF1E',
+    secondary: '#1E1E1E',
     background: '#FFFFFF',
     text: '#283618'
   }},
