@@ -8,6 +8,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import Transcript from "@/components/transcript/Transcript";
+import CoachingStatus from "@/components/CoachingStatus";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const Index = () => {
   const [isMuted, setIsMuted] = useState(false);
@@ -32,8 +34,8 @@ const Index = () => {
     return () => clearTimeout(timer);
   }, [user, navigate]);
 
-  const handleDataAvailable = async (event: BlobEvent) => {
-    if (event.data.size > 0 && currentSession) {
+  const handleDataAvailable = async (event: BlobEvent, sessionId: string) => {
+    if (event.data.size > 0 && sessionId) {
       try {
         console.log("Audio chunk received, size:", event.data.size);
 
@@ -151,7 +153,7 @@ const Index = () => {
     }
   };
 
-  const startRecording = async () => {
+  const startRecording = async (sessionId: string) => {
     try {
       console.log("Requesting microphone access...");
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -169,7 +171,7 @@ const Index = () => {
 
       mediaRecorderRef.current = mediaRecorder;
 
-      mediaRecorder.ondataavailable = handleDataAvailable;
+      mediaRecorder.ondataavailable = (event: BlobEvent) => handleDataAvailable(event, sessionId);
       mediaRecorder.start(3000); // Capture in 3-second chunks
       console.log("MediaRecorder started");
       setIsRecording(true);
@@ -225,7 +227,7 @@ const Index = () => {
       setStartTime(Date.now());
       setTranscript([]);
       setAiResponses([]);
-      await startRecording();
+      await startRecording(data.id);
       await testTextToSpeech();
     } catch (error) {
       console.error("Error starting session:", error);
@@ -374,7 +376,20 @@ const Index = () => {
               onEndCall={handleEndCall}
             />
 
-            <Transcript />
+            <Tabs defaultValue="transcript" className="w-full mt-8">
+              <TabsList className="grid grid-cols-2 bg-gray-800">
+                <TabsTrigger value="transcript">Transcript</TabsTrigger>
+                <TabsTrigger value="coaching-status">Coaching Status</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="transcript" className="mt-6">
+                <Transcript />
+              </TabsContent>
+
+              <TabsContent value="coaching-status" className="mt-6">
+                <CoachingStatus currentStage="systematic-assessment" />
+              </TabsContent>
+            </Tabs>
           </div>
         </>
       )}

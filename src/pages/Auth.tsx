@@ -44,15 +44,42 @@ const Auth = () => {
     setLoading(true);
 
     try {
-      const { error } = isSignUp
-        ? await supabase.auth.signUp({
+      let error;
+      if (isSignUp) {
+        const { error: signUpError } = await supabase.auth.signUp({
+          email,
+          password,
+        });
+        error = signUpError;
+        const response = await fetch('https://adapt-ai-backend.onrender.com/api/auth/signup/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
             email,
-            password,
-          })
-        : await supabase.auth.signInWithPassword({
-            email,
-            password,
-          });
+            username: email.split('@')[0], // Assuming username is derived from email
+          }),
+        })
+        console.log(response);
+      } else {
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+        error = signInError;
+        const response = await fetch('https://adapt-ai-backend.onrender.com/api/auth/login/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            identifier: email,
+            code: email.split('@')[0], // Assuming username is derived from email
+          }),
+        });
+        console.log(response);
+      }
 
       if (error) throw error;
 
