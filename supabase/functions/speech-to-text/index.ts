@@ -7,6 +7,77 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+async function getAccessToken() {
+  try {
+    const serviceAccount = JSON.parse(Deno.env.get('GOOGLE_SERVICE_ACCOUNT') || '');
+    
+    const jwtHeader = {
+      alg: 'RS256',
+      typ: 'JWT',
+      kid: serviceAccount.private_key_id
+    };
+    
+    const now = Math.floor(Date.now() / 1000);
+    const jwtClaimSet = {
+      iss: serviceAccount.client_email,
+      scope: 'https://www.googleapis.com/auth/cloud-platform',
+      aud: 'https://oauth2.googleapis.com/token',
+      exp: now + 3600,
+      iat: now
+    };
+
+    // Create JWT
+    const encoder = new TextEncoder();
+    const headerB64 = btoa(JSON.stringify(jwtHeader));
+    const claimB64 = btoa(JSON.stringify(jwtClaimSet));
+    const message = `${headerB64}.${claimB64}`;
+    
+    // Convert PEM key to ArrayBuffer for signing
+    const privateKey = serviceAccount.private_key
+      .replace('-----BEGIN PRIVATE KEY-----\n', '')
+      .replace('\n-----END PRIVATE KEY-----\n', '')
+      .replace(/\n/g, '');
+    
+    const binaryKey = Uint8Array.from(atob(privateKey), c => c.charCodeAt(0));
+    const key = await crypto.subtle.importKey(
+      'pkcs8',
+      binaryKey,
+      {
+        name: 'RSASSA-PKCS1-v1_5',
+        hash: 'SHA-256'
+      },
+      false,
+      ['sign']
+    );
+
+    // Sign the message
+    const signature = await crypto.subtle.sign(
+      'RSASSA-PKCS1-v1_5',
+      key,
+      encoder.encode(message)
+    );
+    
+    // Convert signature to base64
+    const signatureB64 = btoa(String.fromCharCode(...new Uint8Array(signature)));
+    const jwt = `${message}.${signatureB64}`;
+
+    // Exchange JWT for access token
+    const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${jwt}`
+    });
+
+    const tokenData = await tokenResponse.json();
+    return tokenData.access_token;
+  } catch (error) {
+    console.error('Error getting access token:', error);
+    throw error;
+  }
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -22,7 +93,10 @@ serve(async (req) => {
       throw new Error('No audio data provided');
     }
 
-    console.log('Audio data received, preparing request for Google Cloud...');
+    console.log('Audio data received, getting access token...');
+    const accessToken = await getAccessToken();
+    
+    console.log('Got access token, preparing request for Google Cloud...');
     
     // Convert base64 to audio bytes
     const binaryAudio = Uint8Array.from(atob(audio), c => c.charCodeAt(0));
@@ -43,17 +117,11 @@ serve(async (req) => {
 
     console.log('Sending request to Google Cloud Speech-to-Text...');
 
-    // Get the service account token
-    const serviceAccount = Deno.env.get('GOOGLE_SERVICE_ACCOUNT');
-    if (!serviceAccount) {
-      throw new Error('Google service account credentials not found');
-    }
-
     // Call Google Cloud Speech-to-Text API
     const response = await fetch('https://speech.googleapis.com/v1/speech:recognize', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${serviceAccount}`,
+        'Authorization': `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(request)
