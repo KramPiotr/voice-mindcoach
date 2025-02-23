@@ -94,16 +94,16 @@ export const useAudioHandler = () => {
                     toast.error("Error getting AI response");
                     return;
                   }
-
-                  if (aiData?.["ai_response"] === "done") {
-                    console.log("Received AI response:", aiData.response);
-                    setAiResponses((prev) => [...prev, aiData.response]);
+                  const aiResponse = aiData?.["ai_response"];
+                  if (aiData?.status === "done") {
+                    console.log("Received AI response:", aiResponse);
+                    setAiResponses((prev) => [...prev, aiResponse]);
 
                     // Convert AI response to speech
                     console.log("Converting AI response to speech...");
                     const { data: ttsData, error: ttsError } =
                       await supabase.functions.invoke("text-to-speech", {
-                        body: { text: aiData.response },
+                        body: { text: aiResponse },
                       });
 
                     console.log("Text-to-speech response:", {
@@ -190,7 +190,6 @@ export const useAudioHandler = () => {
       mediaRecorder.start(3000);
       console.log("MediaRecorder started with sessionId:", sessionId);
       setIsRecording(true);
-      console.log("MediaRecorder stopped");
     } catch (error) {
       console.error("Error accessing microphone:", error);
       toast.error("Failed to access microphone");
