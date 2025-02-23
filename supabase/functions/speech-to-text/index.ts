@@ -142,6 +142,7 @@ serve(async (req) => {
     };
 
     console.log('Sending request to Google Cloud Speech-to-Text...');
+    console.log('Authorization header:', `Bearer ${accessToken}`); // Log the authorization header (without the full token)
 
     // Call Google Cloud Speech-to-Text API
     const response = await fetch('https://speech.googleapis.com/v1/speech:recognize', {
@@ -149,21 +150,21 @@ serve(async (req) => {
       headers: {
         'Authorization': `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
+        'X-Goog-User-Project': JSON.parse(Deno.env.get('GOOGLE_SERVICE_ACCOUNT') || '{}').project_id
       },
       body: JSON.stringify(request)
     });
 
     console.log('Received response from Google Cloud Speech-to-Text');
+    console.log('Response status:', response.status);
+    const responseText = await response.text();
+    console.log('Response body:', responseText);
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Google Speech-to-Text API error:', errorText);
-      throw new Error(`Google Speech-to-Text API error: ${errorText}`);
+      throw new Error(`Google Speech-to-Text API error: ${responseText}`);
     }
 
-    const result = await response.json();
-    console.log('Speech-to-Text result:', result);
-
+    const result = JSON.parse(responseText);
     let text = '';
     if (result.results && result.results.length > 0) {
       text = result.results[0].alternatives[0].transcript;
@@ -173,10 +174,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ text }),
       { 
-        headers: { 
-          ...corsHeaders, 
-          'Content-Type': 'application/json' 
-        } 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       }
     );
 
