@@ -26,7 +26,7 @@ function App() {
       <AuthProvider>
         <ThemeProvider attribute="class" defaultTheme="light">
           <Router>
-            <div className="min-h-screen flex w-full relative bg-secondary">
+            <div className="min-h-screen flex w-full relative bg-background">
               <div className={`transition-all duration-300 ${sidebarOpen ? 'translate-x-0' : '-translate-x-64'}`}>
                 <Sidebar />
               </div>
