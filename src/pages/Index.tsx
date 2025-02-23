@@ -22,6 +22,7 @@ const Index = () => {
   const [isRecording, setIsRecording] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const sessionIdRef = useRef<string | null>(null);
   const navigate = useNavigate();
   const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
@@ -34,10 +35,12 @@ const Index = () => {
     return () => clearTimeout(timer);
   }, [user, navigate]);
 
-  const handleDataAvailable = async (event: BlobEvent, sessionId: string) => {
+  const handleDataAvailable = async (event: BlobEvent) => {
+    const sessionId = sessionIdRef.current;
+
     if (event.data.size > 0 && sessionId) {
       try {
-        console.log("Audio chunk received, size:", event.data.size);
+        console.log("Audio chunk received, size:", event.data.size, "sessionId:", sessionId);
 
         // Convert blob to base64
         const reader = new FileReader();
@@ -45,16 +48,16 @@ const Index = () => {
           try {
             const base64 = reader.result as string;
             const base64Audio = base64.split(",")[1];
-            console.log(
-              "Audio converted to base64, sending to speech-to-text..."
-            );
+            console.log("Audio converted to base64, sending to speech-to-text...");
 
-            const { data: sttData, error: sttError } =
-              await supabase.functions.invoke("speech-to-text", {
+            const { data: sttData, error: sttError } = await supabase.functions.invoke(
+              "speech-to-text",
+              {
                 body: {
                   audio: base64Audio,
                 },
-              });
+              }
+            );
 
             console.log("Speech-to-text response:", {
               data: sttData,
@@ -73,14 +76,16 @@ const Index = () => {
 
               // Get AI response using vertex-ai function
               console.log("Sending transcript to Vertex AI...");
-              const { data: aiData, error: aiError } =
-                await supabase.functions.invoke("vertex-ai", {
+              const { data: aiData, error: aiError } = await supabase.functions.invoke(
+                "vertex-ai",
+                {
                   body: {
                     text: sttData.text,
-                    sessionId: currentSession,
+                    sessionId: sessionId,
                     userId: user?.id,
                   },
-                });
+                }
+              );
 
               console.log("Vertex AI response:", {
                 data: aiData,
@@ -99,10 +104,12 @@ const Index = () => {
 
                 // Convert AI response to speech
                 console.log("Converting AI response to speech...");
-                const { data: ttsData, error: ttsError } =
-                  await supabase.functions.invoke("text-to-speech", {
+                const { data: ttsData, error: ttsError } = await supabase.functions.invoke(
+                  "text-to-speech",
+                  {
                     body: { text: aiData.response },
-                  });
+                  }
+                );
 
                 console.log("Text-to-speech response:", {
                   data: ttsData,
@@ -116,10 +123,7 @@ const Index = () => {
                 }
 
                 if (ttsData?.audioContent) {
-                  const audioBlob = base64ToBlob(
-                    ttsData.audioContent,
-                    "audio/mpeg"
-                  );
+                  const audioBlob = base64ToBlob(ttsData.audioContent, "audio/mpeg");
                   const audioUrl = URL.createObjectURL(audioBlob);
 
                   if (audioRef.current) {
@@ -148,7 +152,7 @@ const Index = () => {
     } else {
       console.log("No audio data or session:", {
         dataSize: event.data.size,
-        hasSession: Boolean(currentSession),
+        hasSession: Boolean(sessionId),
       });
     }
   };
@@ -170,10 +174,11 @@ const Index = () => {
       });
 
       mediaRecorderRef.current = mediaRecorder;
+      sessionIdRef.current = sessionId;
 
-      mediaRecorder.ondataavailable = (event: BlobEvent) => handleDataAvailable(event, sessionId);
-      mediaRecorder.start(3000); // Capture in 3-second chunks
-      console.log("MediaRecorder started");
+      mediaRecorder.ondataavailable = handleDataAvailable;
+      mediaRecorder.start(3000);
+      console.log("MediaRecorder started with sessionId:", sessionId);
       setIsRecording(true);
     } catch (error) {
       console.error("Error accessing microphone:", error);
@@ -185,10 +190,9 @@ const Index = () => {
     if (mediaRecorderRef.current && isRecording) {
       console.log("Stopping MediaRecorder...");
       mediaRecorderRef.current.stop();
-      mediaRecorderRef.current.stream
-        .getTracks()
-        .forEach((track) => track.stop());
+      mediaRecorderRef.current.stream.getTracks().forEach((track) => track.stop());
       setIsRecording(false);
+      sessionIdRef.current = null;
       console.log("MediaRecorder stopped");
     } else {
       console.log("Cannot stop recording:", {
@@ -223,6 +227,7 @@ const Index = () => {
 
       console.log("Session created:", data.id);
       setCurrentSession(data.id);
+      sessionIdRef.current = data.id;
       setIsCallActive(true);
       setStartTime(Date.now());
       setTranscript([]);
