@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import LoadingSpinner from "@/components/LoadingSpinner";
@@ -28,7 +27,7 @@ const Index = () => {
     stopRecording,
     setTranscript,
     setAiResponses,
-  } = useAudioHandler(user);
+  } = useAudioHandler();
 
   useEffect(() => {
     if (!user) {
@@ -62,7 +61,7 @@ const Index = () => {
 
       if (data?.audioContent) {
         const audioBlob = new Blob(
-          [Uint8Array.from(atob(data.audioContent), c => c.charCodeAt(0))],
+          [Uint8Array.from(atob(data.audioContent), (c) => c.charCodeAt(0))],
           { type: "audio/mpeg" }
         );
         const audioUrl = URL.createObjectURL(audioBlob);
@@ -107,7 +106,7 @@ const Index = () => {
       setStartTime(Date.now());
       setTranscript([]);
       setAiResponses([]);
-      await startRecording(data.id);
+      await startRecording(data.id, data.id);
       await testTextToSpeech();
     } catch (error) {
       console.error("Error starting session:", error);
