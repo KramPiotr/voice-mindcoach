@@ -54,42 +54,12 @@ const Auth = () => {
           password,
         });
         error = signUpError;
-        const response = await fetch(
-          `${import.meta.env.VITE_API_URL}/api/auth/signup/`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              email,
-              username: email.split("@")[0], // Assuming username is derived from email
-            }),
-          }
-        );
-        console.log(response);
       } else {
         const { error: signInError } = await supabase.auth.signInWithPassword({
           email,
           password,
         });
         error = signInError;
-        const response = await fetch(
-          `${import.meta.env.VITE_API_URL}/api/auth/login/`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              identifier: email,
-              code: email.split("@")[0], // Assuming username is derived from email
-            }),
-          }
-        );
-        const data = await response.json();
-        console.log(data);
-        setAccessToken(data.access);
       }
 
       if (error) throw error;
