@@ -9,8 +9,15 @@ const corsHeaders = {
 
 async function getAccessToken() {
   try {
-    const serviceAccount = JSON.parse(Deno.env.get('GOOGLE_SERVICE_ACCOUNT') || '');
+    const serviceAccountStr = Deno.env.get('GOOGLE_SERVICE_ACCOUNT');
+    if (!serviceAccountStr) {
+      throw new Error('GOOGLE_SERVICE_ACCOUNT environment variable is not set');
+    }
+
+    console.log('Parsing service account credentials...');
+    const serviceAccount = JSON.parse(serviceAccountStr);
     
+    console.log('Creating JWT header...');
     const jwtHeader = {
       alg: 'RS256',
       typ: 'JWT',
@@ -18,6 +25,7 @@ async function getAccessToken() {
     };
     
     const now = Math.floor(Date.now() / 1000);
+    console.log('Creating JWT claim set...');
     const jwtClaimSet = {
       iss: serviceAccount.client_email,
       scope: 'https://www.googleapis.com/auth/cloud-platform',
@@ -28,16 +36,18 @@ async function getAccessToken() {
 
     // Create JWT
     const encoder = new TextEncoder();
-    const headerB64 = btoa(JSON.stringify(jwtHeader));
-    const claimB64 = btoa(JSON.stringify(jwtClaimSet));
+    const headerB64 = btoa(JSON.stringify(jwtHeader)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    const claimB64 = btoa(JSON.stringify(jwtClaimSet)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
     const message = `${headerB64}.${claimB64}`;
     
+    console.log('Processing private key...');
     // Convert PEM key to ArrayBuffer for signing
     const privateKey = serviceAccount.private_key
       .replace('-----BEGIN PRIVATE KEY-----\n', '')
       .replace('\n-----END PRIVATE KEY-----\n', '')
       .replace(/\n/g, '');
     
+    console.log('Importing key for signing...');
     const binaryKey = Uint8Array.from(atob(privateKey), c => c.charCodeAt(0));
     const key = await crypto.subtle.importKey(
       'pkcs8',
@@ -50,6 +60,7 @@ async function getAccessToken() {
       ['sign']
     );
 
+    console.log('Signing JWT...');
     // Sign the message
     const signature = await crypto.subtle.sign(
       'RSASSA-PKCS1-v1_5',
@@ -58,9 +69,13 @@ async function getAccessToken() {
     );
     
     // Convert signature to base64
-    const signatureB64 = btoa(String.fromCharCode(...new Uint8Array(signature)));
+    const signatureB64 = btoa(String.fromCharCode(...new Uint8Array(signature)))
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
     const jwt = `${message}.${signatureB64}`;
 
+    console.log('Exchanging JWT for access token...');
     // Exchange JWT for access token
     const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
@@ -70,10 +85,17 @@ async function getAccessToken() {
       body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${jwt}`
     });
 
+    if (!tokenResponse.ok) {
+      const errorData = await tokenResponse.text();
+      console.error('Token exchange error response:', errorData);
+      throw new Error(`Failed to get access token: ${errorData}`);
+    }
+
     const tokenData = await tokenResponse.json();
+    console.log('Successfully obtained access token');
     return tokenData.access_token;
   } catch (error) {
-    console.error('Error getting access token:', error);
+    console.error('Detailed error in getAccessToken:', error);
     throw error;
   }
 }
@@ -95,6 +117,10 @@ serve(async (req) => {
 
     console.log('Audio data received, getting access token...');
     const accessToken = await getAccessToken();
+    
+    if (!accessToken) {
+      throw new Error('Failed to obtain access token');
+    }
     
     console.log('Got access token, preparing request for Google Cloud...');
     
